@@ -1,4 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+- author: JDaniel Jimenez
+- email:  jdjp83@gmail.com
+
+- What is this about:
+mbreplayd is a multicast & Broadcast traffic replay daemon for pseudo-bridges
+(aka Layer 3 bridges). The ideal scenario to use
+
+- Ideal scenario:
+
+
+- Known issues:
+The main downside of mbreplayd is related to performance. Using python + scapy
+to sniff packets, modify and replay them in realtime maybe is not the best way
+to go. However, mbreplayd is not intended to be production grade software but
+a way to investigate, learn, study and code and, by the way, solve a problem
+with my lab environment, which is the ideal scenario for mbreplayd.
+
+"""
 
 import signal
 import sys
@@ -11,7 +32,7 @@ from datetime import datetime
 sigterm = False
 
 # Control de SIGTERM
-def signal_term_handler(signal, frame):
+def signal_term_handler():
     global sigterm
     print 'got SIGTERM'
     sigterm = True
