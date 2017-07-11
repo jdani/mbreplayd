@@ -5,11 +5,35 @@
 - author: JDaniel Jimenez
 - email:  jdjp83@gmail.com
 
+
 - What is this about:
 mbreplayd is a multicast & Broadcast traffic replay daemon for pseudo-bridges
-(aka Layer 3 bridges). The ideal scenario to use
+(aka Layer 3 bridges).
+
+
+- How it works:
+The idea is quite simple. What mbreplay does is:
+    - sniff for traffic in in_iface
+    - choose the packets matcheing BPF filter
+    - change the source mac with the out_iface hwaddr
+    - send the packet to out_iface
+
+The only point is that, in order to be useful, mbreplayd has to replay packets
+received in the out_iface to the in_iface. Every packet but those ones which
+src ip is the same that the IP generating this traffic. This filter is setted
+up automatically from the bpf_filter
+
 
 - Ideal scenario:
+mbreplayd is usefull to forward broadcast and multicast traffic from in_iface
+to out_iface, both of them part of a pseudo-bridge. This is a layer 3 bridge.
+For sure, pseudo-bridges is not the best or event the default option to bridge
+two interfaces but, sometimes, it needed. For example when a wireles interface
+is a bridge member. In that case, is pretty common to need pseudo-bridges. In
+my case, the upstream interface in my virtualization server was wireless, so
+I decided to solve the problem with unicast traffic using parprouted but I
+couldn't do the same with any other software or configuration I tried. So I
+decided to write mbreplayd!.
 
 
 - Known issues:
