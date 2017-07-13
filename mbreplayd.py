@@ -47,18 +47,60 @@ with my lab environment, which is the ideal scenario for mbreplayd.
 
 import signal
 import sys
-from scapy.all import get_if_hwaddr, sniff, sendp
-from pprint import pprint
+from time import sleep
 from threading import Thread
 from datetime import datetime
+from scapy.all import get_if_hwaddr, sniff, sendp
+
 
 
 class BCReplay(object):
     """
     Main bcreplayd class
     """
-    pass
+    def __init__(   self,
+                    iface_in,
+                    iface_out,
+                    src_ip,
+                    bm_ip,
+                    bm_port,
+                    bm_proto='udp'):
+        """
+        iface_in: interface listening for original traffic
+        iface_out: interface where traffic will be replayed
+        src_ip: Source IP of original traffic
+        bm_ip: Broadcast or multicast dest IP
+        bm_port: Broadcast or multicast dest port
+        bm_proto: If you need to change this, mail me!
+        """
 
+        self.fordarders = {}
+        self.fordarders['inbound'] = FWDInbound(
+                                                    iface_in,
+                                                    iface_out,
+                                                    src_ip,
+                                                    bm_ip,
+                                                    bm_port)
+        # In and Out iface are switched!
+        self.fordarders['outbound'] = FWDOutbound(  iface_out,
+                                                    iface_in,
+                                                    src_ip,
+                                                    bm_ip,
+                                                    bm_port)
+
+    def start(self):
+        """
+        start replaying
+        """
+        for fwd in self.fordarders:
+            self.fordarders[fwd].start()
+
+    def stop(self):
+        """
+        start replaying
+        """
+        for fwd in self.fordarders:
+            self.fordarders[fwd].stop()
 
 
 
@@ -97,15 +139,20 @@ class Forward(object):
         self.replaying = False
 
         # Private var to use as stop flag for sniff method
-        self.__stop_sniffing = False
+        self.__stop_flag = False
 
+    def __stop_sniffing(self, pkt):
+        """
+        Returns stop flag
+        """
+        return self.__stop_flag
 
     def __sniff(self):
         """
         Sniff method.
 
         Callback: __replay
-        Stop condition: __stop_sniffing
+        Stop condition: __stop_flag
         """
         sniff(  iface=self.iface_in,
                 prn=self.__replay,
@@ -129,7 +176,7 @@ class Forward(object):
         Start replaying traffic
         """
         # makes sure sniff flag is set to true
-        self.__stop_sniffing = False
+        self.__stop_flag = False
 
         # Create sniff thread and start it
         self.__sniff_thread = Thread(target=self.__sniff)
@@ -144,7 +191,7 @@ class Forward(object):
         Stop replaying traffic
         """
         # makes sure sniff flag is set to true
-        self.__stop_sniffing = True
+        self.__stop_flag = True
 
         # Set replaying status to true
         self.replaying = False
@@ -192,94 +239,51 @@ class FWDOutbound(Forward):
     """
     class managing outbound traffic (from src)
     """
-    pass
+    def __init__(   self,
+                    iface_in,
+                    iface_out,
+                    src_ip,
+                    bm_ip,
+                    bm_port,
+                    bm_proto='udp'):
+        """
+        iface_in: interface to sniff traffic in
+        iface_out: interface to replay sniffed packages
+        src_ip: IP generating broadcast or multicast traffic
+        bm_ip: broadcast or multicast IP
+        bm_port: broadcast or multicast dst port
+        bm_proto: Changing this won't be needed (will it? jdjp83@gmail.com)
+        """
+
+        bpf_filter_args = {
+            "not": "",
+            "src_ip": src_ip,
+            "bm_proto": bm_proto,
+            "bm_ip": bm_ip,
+            "bm_port": bm_port
+        }
+
+        # BPF Filter created!!
+        self.bpf_filter = self.BASE_BPF_FILTER % bpf_filter_args
+        
+        # Init super class with right params
+        super(FWDOutbound, self).__init__(iface_in, iface_out, self.bpf_filter)
 
 
 
 
+iface_in = "vmbr0"
+iface_out = "wlan0"
+src_ip = "192.168.1.11"
+bm_ip = "239.255.255.250"
+bm_port = "1900"
 
+bcreplay = BCReplay(iface_in, iface_out, src_ip, bm_ip, bm_port)
 
+secs = 120
+bcreplay.start()
+for i in range(0, secs):
+    sleep(1)
+    print i
+bcreplay.stop()
 
-
-
-
-
-
-
-sigterm = False
-
-# Control de SIGTERM
-def signal_term_handler():
-    global sigterm
-    print 'got SIGTERM'
-    sigterm = True
-    sys.exit(0)
-
-signal.signal(signal.SIGTERM, signal_term_handler)
-
-def stop_condition(pkt):
-    global sigterm
-    return sigterm
-
-
-def print_pkt_info(pkt, iface_in, iface_out):
-    now_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-    print "%s: [%s] %s -> [%s] %s" % (
-        now_time,
-        iface_in,
-        pkt[0][1].src,
-        iface_out,
-        pkt[0][1].dst,
-    )
-
-
-# inbound sniff + replay
-def inbound_sniff():
-    sniff(iface="wlan0", prn=inbound_replayer, filter=in_bpf_filter, store=0, stop_filter=stop_condition)
-
-def inbound_replayer(pkt):
-    pkt[0][0].src = rpl_hwaddr
-    pkt[0][0].dst = dst_hwaddr
-    print_pkt_info(pkt, 'wlan0', 'vmbr0')
-    sendp(pkt, iface='vmbr0', verbose=False)
-
-
-# outbound sniff + replay
-def outbound_sniff():
-    sniff(iface="vmbr0", prn=outbound_replayer, filter=out_bpf_filter, store=0, stop_filter=stop_condition)
-
-def outbound_replayer(pkt):
-    pkt[0][0].src = src_hwaddr
-    pkt[0][0].dst = dst_hwaddr
-    print_pkt_info(pkt, 'vmbr0', 'wlan0')
-    sendp(pkt, iface='wlan0', verbose=False)
-
-
-
-
-src_hwaddr = get_if_hwaddr('wlan0')
-rpl_hwaddr = get_if_hwaddr('vmbr0')
-# Broadcast Address
-dst_hwaddr = '01:00:5e:7f:ff:fa'
-
-# Outbound BPF Filter
-out_bpf_filter = "src host 192.168.1.11"
-out_bpf_filter += " and dst port 1900"
-out_bpf_filter += " and udp"
-out_bpf_filter += " and dst host 239.255.255.250"
-# out_bpf_filter = "ip multicast or ip broadcast"
-
-
-# Inbound BPF Filter
-in_bpf_filter = "not src host 192.168.1.11"
-in_bpf_filter += " and dst port 1900"
-in_bpf_filter += " and udp"
-in_bpf_filter += " and dst host 239.255.255.250"
-# in_bpf_filter = "not src host 192.168.1.11 and (ip multicast or ip broadcast)"
-
-
-t_outbound = Thread(target=outbound_sniff)
-t_outbound.start()
-
-t_inbound = Thread(target=inbound_sniff)
-t_inbound.start()
