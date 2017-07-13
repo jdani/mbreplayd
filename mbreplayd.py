@@ -47,10 +47,105 @@ with my lab environment, which is the ideal scenario for mbreplayd.
 
 import signal
 import sys
-from scapy.all import *
+from scapy.all import get_if_hwaddr, sniff, sendp
 from pprint import pprint
 from threading import Thread
 from datetime import datetime
+
+
+class BCReplay:
+    """
+    Main bcreplayd class
+    """
+    pass
+
+
+class fwd_inbound(forward):
+    pass
+
+
+class fwd_outbound(forward):
+    pass
+
+
+class forward():
+    """
+    Class to create a traffic forward. It stats listening in inbound inface and
+    replay traffic matching bpf filter to the outbound iface.
+    """
+
+    def __init__(self, iface_in, iface_out, bpf_filter):
+        """
+        iface_in: interface to sniff traffic in
+        iface_out: interface to replay sniffed packages
+        bpf_filter: filter to process only the matching traffic
+        """
+
+        # Creating instance vars from init params
+        self.iface_in = iface_in
+        self.iface_out = iface_out
+        self.bpf_filter = bpf_filter
+
+        # Outbound address MAC is needed to use as src in th replayed traffic
+        self.iface_out_hwaddr = get_if_hwaddr(iface_out)
+
+        # var to check sniff status
+        self.replaying = False
+
+        # Private var to use as stop flag for sniff method
+        self.__stop_sniffing = False
+
+
+    def __sniff(self):
+        """
+        Sniff method.
+
+        Callback: __replay
+        Stop condition: __stop_sniffing
+        """
+        sniff(  iface=self.iface_in,
+                prn=self.__replay,
+                filter=self.bpf_filter,
+                store=0,
+                stop_filter=self.__stop_sniffing)
+
+
+    def __replay(self, pkt):
+        """
+        Replay packet to out_iface changing src_mac with outbout iface mac
+
+        pkt: packet to replay
+        """
+        pkt[0][0].src = self.iface_out_hwaddr
+        sendp(pkt, iface=self.iface_out, verbose=False)
+
+
+    def start(self):
+        """
+        Start replaying traffic
+        """
+        # makes sure sniff flag is set to true
+        self.__stop_sniffing = False
+
+        # Create sniff thread and start it
+        self.__sniff_thread = Thread(target=self.__sniff)
+        self.__sniff_thread.start()
+
+        # Set replaying status to true
+        self.replaying = True
+
+
+    def stop(self):
+        """
+        Stop replaying traffic
+        """
+        # makes sure sniff flag is set to true
+        self.__stop_sniffing = True
+
+        # Set replaying status to true
+        self.replaying = False
+
+
 
 
 sigterm = False
@@ -130,5 +225,3 @@ t_outbound.start()
 
 t_inbound = Thread(target=inbound_sniff)
 t_inbound.start()
-
-
