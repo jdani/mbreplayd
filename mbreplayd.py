@@ -53,26 +53,30 @@ from threading import Thread
 from datetime import datetime
 
 
-class BCReplay:
+class BCReplay(object):
     """
     Main bcreplayd class
     """
     pass
 
 
-class fwd_inbound(forward):
-    pass
 
 
-class fwd_outbound(forward):
-    pass
 
-
-class forward():
+class Forward(object):
     """
     Class to create a traffic forward. It stats listening in inbound inface and
     replay traffic matching bpf filter to the outbound iface.
     """
+
+    # Base BPF filter
+    # Not will be only used in inbound traffic in order to prevent
+    # replaying already replayed traffic. If not is not defined, it will
+    # create a broadcast or multicast storm. You can trust me :P
+    BASE_BPF_FILTER = "%(not)s src host %(src_ip)s"
+    BASE_BPF_FILTER += " and dst port %(bm_port)s"
+    BASE_BPF_FILTER += " and %(bm_proto)s"
+    BASE_BPF_FILTER += " and dst host %(bm_ip)s"
 
     def __init__(self, iface_in, iface_out, bpf_filter):
         """
@@ -144,6 +148,60 @@ class forward():
 
         # Set replaying status to true
         self.replaying = False
+
+
+
+class FWDInbound(Forward):
+    """
+    class managing inbound traffic (replies to src)
+    """
+    def __init__(   self,
+                    iface_in,
+                    iface_out,
+                    src_ip,
+                    bm_ip,
+                    bm_port,
+                    bm_proto='udp'):
+        """
+        iface_in: interface to sniff traffic in
+        iface_out: interface to replay sniffed packages
+        src_ip: IP generating broadcast or multicast traffic
+        bm_ip: broadcast or multicast IP
+        bm_port: broadcast or multicast dst port
+        bm_proto: Changing this won't be needed (will it? jdjp83@gmail.com)
+        """
+
+        bpf_filter_args = {
+            "not": "not",
+            "src_ip": src_ip,
+            "bm_proto": bm_proto,
+            "bm_ip": bm_ip,
+            "bm_port": bm_port
+        }
+
+        # BPF Filter created!!
+        self.bpf_filter = self.BASE_BPF_FILTER % bpf_filter_args
+        
+        # Init super class with right params
+        super(FWDInbound, self).__init__(iface_in, iface_out, self.bpf_filter)
+
+
+
+
+class FWDOutbound(Forward):
+    """
+    class managing outbound traffic (from src)
+    """
+    pass
+
+
+
+
+
+
+
+
+
 
 
 
