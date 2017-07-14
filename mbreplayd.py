@@ -45,13 +45,9 @@ with my lab environment, which is the ideal scenario for mbreplayd.
 
 """
 
-import signal
-import sys
-from time import sleep
+import argparse
 from threading import Thread
-from datetime import datetime
 from scapy.all import get_if_hwaddr, sniff, sendp
-
 
 
 class BCReplay(object):
@@ -272,6 +268,64 @@ class FWDOutbound(Forward):
 
 
 
+
+
+def main():
+    """
+    Function ti run when is called as command instead of module
+    """
+
+    # Define default values
+    DEFAULT_LOG_LEVEL = 'info'
+    DEFAULT_LOG_FILE = '/var/log/mbreplayd.log'
+    DEFAULT_CFG_FILE = '/etc/mbreplayd.conf'
+
+
+     # Create arguments parser
+    parser = argparse.ArgumentParser(description='Multicas & Broadcast traffic Replay Daemon')
+    
+    # Daemon mode
+    parser.add_argument(    "-d",
+                            "--daemon",
+                            action="store_true",
+                            help="Daemon mode. If not set, logs will be printed to stdout.",
+                            default=False)
+                        
+    # Log level
+    parser.add_argument(    "-l",
+                            "--log-level",
+                            action="store",
+                            help="Log level: [debug|info|warn|error|critical]. Default: %s" % DEFAULT_LOG_LEVEL )
+    
+
+    # Log file
+    parser.add_argument(    "-f",
+                            "--log-file",
+                            action="store",
+                            help="Path to log file. Default: %s" % DEFAULT_LOG_FILE )
+
+    # Config file
+    parser.add_argument(    "-c",
+                            "--cfg",
+                            action="store",
+                            help="Path to config file. Default: %s" % DEFAULT_CFG_FILE )
+
+    # As many replays as needed...
+    parser.add_argument(    "-r",
+                            "--replay",
+                            action="append",
+                            help="""
+                            Replay definition. Can be used more than once.
+                            Format:
+                            in_iface:out_iface:src_ip:bm_ip:bm_port
+                            """)
+
+    results = parser.parse_args()
+    print results
+
+
+''' 
+
 iface_in = "vmbr0"
 iface_out = "wlan0"
 src_ip = "192.168.1.11"
@@ -287,3 +341,8 @@ for i in range(0, secs):
     print i
 bcreplay.stop()
 
+ '''
+
+
+if __name__ == "__main__":
+     main()
