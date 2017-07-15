@@ -102,3 +102,6 @@ ENV/
 
 # Visual Code Studio
 .vscode
+
+# Will be managed manually
+requirements_devel.txt
