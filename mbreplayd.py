@@ -50,17 +50,20 @@ from threading import Thread
 from scapy.all import get_if_hwaddr, sniff, sendp
 
 
+
 class BCReplay(object):
     """
     Main bcreplayd class
     """
-    def __init__(   self,
-                    iface_in,
-                    iface_out,
-                    src_ip,
-                    bm_ip,
-                    bm_port,
-                    bm_proto='udp'):
+    def __init__(
+            self,
+            iface_in,
+            iface_out,
+            src_ip,
+            bm_ip,
+            bm_port,
+            bm_proto='udp'
+    ):
         """
         iface_in: interface listening for original traffic
         iface_out: interface where traffic will be replayed
@@ -72,17 +75,23 @@ class BCReplay(object):
 
         self.fordarders = {}
         self.fordarders['inbound'] = FWDInbound(
-                                                    iface_in,
-                                                    iface_out,
-                                                    src_ip,
-                                                    bm_ip,
-                                                    bm_port)
+            iface_in,
+            iface_out,
+            src_ip,
+            bm_ip,
+            bm_port,
+            bm_proto
+        )
+
         # In and Out iface are switched!
-        self.fordarders['outbound'] = FWDOutbound(  iface_out,
-                                                    iface_in,
-                                                    src_ip,
-                                                    bm_ip,
-                                                    bm_port)
+        self.fordarders['outbound'] = FWDOutbound(
+            iface_out,
+            iface_in,
+            src_ip,
+            bm_ip,
+            bm_port,
+            bm_proto
+        )
 
     def start(self):
         """
@@ -137,6 +146,9 @@ class Forward(object):
         # Private var to use as stop flag for sniff method
         self.__stop_flag = False
 
+        # Creates sniff thread
+        self.__sniff_thread = Thread(target=self.__sniff)
+
     def __stop_sniffing(self, pkt):
         """
         Returns stop flag
@@ -150,11 +162,13 @@ class Forward(object):
         Callback: __replay
         Stop condition: __stop_flag
         """
-        sniff(  iface=self.iface_in,
-                prn=self.__replay,
-                filter=self.bpf_filter,
-                store=0,
-                stop_filter=self.__stop_sniffing)
+        sniff(
+            iface=self.iface_in,
+            prn=self.__replay,
+            filter=self.bpf_filter,
+            store=0,
+            stop_filter=self.__stop_sniffing
+        )
 
 
     def __replay(self, pkt):
@@ -174,8 +188,7 @@ class Forward(object):
         # makes sure sniff flag is set to true
         self.__stop_flag = False
 
-        # Create sniff thread and start it
-        self.__sniff_thread = Thread(target=self.__sniff)
+        # Start sniff thread
         self.__sniff_thread.start()
 
         # Set replaying status to true
@@ -198,13 +211,15 @@ class FWDInbound(Forward):
     """
     class managing inbound traffic (replies to src)
     """
-    def __init__(   self,
-                    iface_in,
-                    iface_out,
-                    src_ip,
-                    bm_ip,
-                    bm_port,
-                    bm_proto='udp'):
+    def __init__(
+        self,
+        iface_in,
+        iface_out,
+        src_ip,
+        bm_ip,
+        bm_port,
+        bm_proto='udp'
+    ):
         """
         iface_in: interface to sniff traffic in
         iface_out: interface to replay sniffed packages
@@ -224,7 +239,7 @@ class FWDInbound(Forward):
 
         # BPF Filter created!!
         self.bpf_filter = self.BASE_BPF_FILTER % bpf_filter_args
-        
+
         # Init super class with right params
         super(FWDInbound, self).__init__(iface_in, iface_out, self.bpf_filter)
 
@@ -261,7 +276,7 @@ class FWDOutbound(Forward):
 
         # BPF Filter created!!
         self.bpf_filter = self.BASE_BPF_FILTER % bpf_filter_args
-        
+
         # Init super class with right params
         super(FWDOutbound, self).__init__(iface_in, iface_out, self.bpf_filter)
 
@@ -283,49 +298,59 @@ def main():
 
      # Create arguments parser
     parser = argparse.ArgumentParser(description='Multicas & Broadcast traffic Replay Daemon')
-    
+
     # Daemon mode
-    parser.add_argument(    "-d",
-                            "--daemon",
-                            action="store_true",
-                            help="Daemon mode. If not set, logs will be printed to stdout.",
-                            default=False)
+    parser.add_argument(
+        "-d",
+        "--daemon",
+        action="store_true",
+        help="Daemon mode. If not set, logs will be printed to stdout.",
+        default=False
+    )
                         
     # Log level
-    parser.add_argument(    "-l",
-                            "--log-level",
-                            action="store",
-                            help="Log level: [debug|info|warn|error|critical]. Default: %s" % DEFAULT_LOG_LEVEL )
-    
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        action="store",
+        help="Log level: [debug|info|warn|error|critical]. Default: %s"
+            % DEFAULT_LOG_LEVEL
+    )
+
 
     # Log file
-    parser.add_argument(    "-f",
-                            "--log-file",
-                            action="store",
-                            help="Path to log file. Default: %s" % DEFAULT_LOG_FILE )
+    parser.add_argument(
+        "-f",
+        "--log-file",
+        action="store",
+        help="Path to log file. Default: %s" % DEFAULT_LOG_FILE
+    )
 
     # Config file
-    parser.add_argument(    "-c",
-                            "--cfg",
-                            action="store",
-                            help="Path to config file. Default: %s" % DEFAULT_CFG_FILE )
+    parser.add_argument(
+        "-c",
+        "--cfg",
+        action="store",
+        help="Path to config file. Default: %s" % DEFAULT_CFG_FILE
+    )
 
     # As many replays as needed...
-    parser.add_argument(    "-r",
-                            "--replay",
-                            action="append",
-                            help="""
-                            Replay definition. Can be used more than once.
-                            Format:
-                            in_iface:out_iface:src_ip:bm_ip:bm_port
-                            """)
+    parser.add_argument(
+        "-r",
+        "--replay",
+        action="append",
+        help="""
+            Replay definition. Can be used more than once.
+            Format:
+            in_iface:out_iface:src_ip:bm_ip:bm_port
+        """
+        )
 
     results = parser.parse_args()
     print results
 
 
-''' 
-
+'''
 iface_in = "vmbr0"
 iface_out = "wlan0"
 src_ip = "192.168.1.11"
@@ -340,9 +365,8 @@ for i in range(0, secs):
     sleep(1)
     print i
 bcreplay.stop()
-
- '''
+'''
 
 
 if __name__ == "__main__":
-     main()
+    main()
