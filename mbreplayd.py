@@ -46,7 +46,7 @@ with my lab environment, which is the ideal scenario for mbreplayd.
 """
 
 import argparse
-from threading import Thread
+from multiprocessing import Process
 from scapy.all import get_if_hwaddr, sniff, sendp
 
 
@@ -131,7 +131,6 @@ class Forward(object):
         iface_out: interface to replay sniffed packages
         bpf_filter: filter to process only the matching traffic
         """
-
         # Creating instance vars from init params
         self.iface_in = iface_in
         self.iface_out = iface_out
@@ -143,31 +142,21 @@ class Forward(object):
         # var to check sniff status
         self.replaying = False
 
-        # Private var to use as stop flag for sniff method
-        self.__stop_flag = False
+        # Create sniff fork
+        self.__sniff_fork = Process(target=self.__sniff)
 
-        # Creates sniff thread
-        self.__sniff_thread = Thread(target=self.__sniff)
-
-    def __stop_sniffing(self, pkt):
-        """
-        Returns stop flag
-        """
-        return self.__stop_flag
 
     def __sniff(self):
         """
         Sniff method.
 
         Callback: __replay
-        Stop condition: __stop_flag
         """
         sniff(
             iface=self.iface_in,
             prn=self.__replay,
             filter=self.bpf_filter,
-            store=0,
-            stop_filter=self.__stop_sniffing
+            store=0
         )
 
 
@@ -185,11 +174,8 @@ class Forward(object):
         """
         Start replaying traffic
         """
-        # makes sure sniff flag is set to true
-        self.__stop_flag = False
-
-        # Start sniff thread
-        self.__sniff_thread.start()
+        # Fork sniff
+        self.__sniff_fork.start()
 
         # Set replaying status to true
         self.replaying = True
@@ -199,8 +185,8 @@ class Forward(object):
         """
         Stop replaying traffic
         """
-        # makes sure sniff flag is set to true
-        self.__stop_flag = True
+        # Kill sniffing fork
+        self.__sniff_fork.terminate()
 
         # Set replaying status to true
         self.replaying = False
