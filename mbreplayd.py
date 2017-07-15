@@ -45,7 +45,7 @@ with my lab environment, which is the ideal scenario for mbreplayd.
 
 """
 
-import argparse
+import configargparse
 from multiprocessing import Process
 from scapy.all import get_if_hwaddr, sniff, sendp
 
@@ -273,17 +273,34 @@ class FWDOutbound(Forward):
 
 def main():
     """
-    Function ti run when is called as command instead of module
+    Function to run when is called as command instead of module
     """
 
     # Define default values
     DEFAULT_LOG_LEVEL = 'info'
     DEFAULT_LOG_FILE = '/var/log/mbreplayd.log'
-    DEFAULT_CFG_FILE = '/etc/mbreplayd.conf'
+    DEFAULT_CFG_FILE = [
+            './mbreplayd.conf',
+            '~/mbreplayd.conf',
+            '/etc/mbreplayd.conf'
+    ]
 
 
      # Create arguments parser
-    parser = argparse.ArgumentParser(description='Multicas & Broadcast traffic Replay Daemon')
+     # It's possible to define arguments vía command line arguments and/or
+     # config file. If any argument is defined more than once, this is the
+     # overriding order:
+     # 1. Command line arg
+     # 2. Config file specified in the command line arg
+     # 3. mbreplayd.conf /same directory as .py)
+     # 4. ~/mbreplayd.conf
+     # 5. /etc/mbreplayd.conf
+     # 6. Default config values
+
+    parser = configargparse.ArgumentParser(
+        description='Multicas & Broadcast traffic Replay Daemon',
+        default_config_files=DEFAULT_CFG_FILE
+    )
 
     # Daemon mode
     parser.add_argument(
@@ -316,8 +333,8 @@ def main():
     parser.add_argument(
         "-c",
         "--cfg",
-        action="store",
-        help="Path to config file. Default: %s" % DEFAULT_CFG_FILE
+        is_config_file=True,
+        help="Path to config file. Default: %s" % str(DEFAULT_CFG_FILE)
     )
 
     # As many replays as needed...
