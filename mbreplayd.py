@@ -85,8 +85,8 @@ class BCReplay(object):
 
         # In and Out iface are switched!
         self.fordarders['outbound'] = FWDOutbound(
-            iface_out,
             iface_in,
+            iface_out,
             src_ip,
             bm_ip,
             bm_port,
@@ -151,7 +151,7 @@ class Forward(object):
         Sniff method.
 
         Callback: __replay
-        """
+        """ 
         sniff(
             iface=self.iface_in,
             prn=self.__replay,
@@ -216,7 +216,7 @@ class FWDInbound(Forward):
         """
 
         bpf_filter_args = {
-            "not": "not",
+            "not": "",
             "src_ip": src_ip,
             "bm_proto": bm_proto,
             "bm_ip": bm_ip,
@@ -253,7 +253,7 @@ class FWDOutbound(Forward):
         """
 
         bpf_filter_args = {
-            "not": "",
+            "not": "not",
             "src_ip": src_ip,
             "bm_proto": bm_proto,
             "bm_ip": bm_ip,
@@ -264,7 +264,7 @@ class FWDOutbound(Forward):
         self.bpf_filter = self.BASE_BPF_FILTER % bpf_filter_args
 
         # Init super class with right params
-        super(FWDOutbound, self).__init__(iface_in, iface_out, self.bpf_filter)
+        super(FWDOutbound, self).__init__(iface_out, iface_in, self.bpf_filter)
 
 
 
@@ -349,8 +349,30 @@ def main():
         """
         )
 
+    replays = []
+
     results = parser.parse_args()
-    print results
+    for replay in results.replay:
+        params = replay.split(':')
+        in_iface = params[0]
+        out_iface = params[1]
+        src_ip = params[2]
+        bm_ip = params[3]
+        bm_port = params[4]
+
+        r = replays.append(
+            BCReplay(
+                in_iface,
+                out_iface,
+                src_ip,
+                bm_ip,
+                bm_port
+            )
+        )
+
+    # Start every replay
+    for replay in replays:
+        replay.start()
 
 
 '''
