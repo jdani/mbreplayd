@@ -46,9 +46,15 @@ with my lab environment, which is the ideal scenario for mbreplayd.
 """
 
 import configargparse
+import logging
+import logging.handlers
+import os
+import sys
 from multiprocessing import Process
 from scapy.all import get_if_hwaddr, sniff, sendp
 
+
+ 
 
 
 class BCReplay(object):
@@ -73,6 +79,14 @@ class BCReplay(object):
         bm_proto: If you need to change this, mail me!
         """
 
+        # Storing vars to identify replay
+        self.iface_in = iface_in
+        self.iface_out = iface_out
+        self.src_ip = src_ip
+        self.bm_ip = bm_ip
+        self.bm_port = bm_port
+        self.bm_proto = bm_proto
+
         self.fordarders = {}
         self.fordarders['inbound'] = FWDInbound(
             iface_in,
@@ -91,6 +105,20 @@ class BCReplay(object):
             bm_ip,
             bm_port,
             bm_proto
+        )
+    
+    def __str__(self):
+        """
+        Print replay in a human readable format
+        """
+
+        return "[%s] %s >> [%s] %s:%s/%s" % (
+            self.iface_in,
+            self.src_ip,
+            self.iface_out,
+            self.bm_ip,
+            self.bm_port,
+            self.bm_proto
         )
 
     def start(self):
@@ -269,8 +297,6 @@ class FWDOutbound(Forward):
 
 
 
-
-
 def main():
     """
     Function to run when is called as command instead of module
@@ -349,18 +375,66 @@ def main():
         """
         )
 
+    # Args and cofig to cfg
+    cfg = parser.parse_args()
+
+    # Creates log object up to cfg settings
+    logfile_fullpath = os.path.abspath(cfg.log_file)
+    log = logging.getLogger('MBReplay')
+    try:
+        # Use int to force exception if parse.log_level is not a predefined
+        # log level
+        log.setLevel(int(logging.getLevelName(cfg.log_level.upper())))
+    except ValueError:
+        log.setLevel(int(logging.getLevelName(DEFAULT_LOG_LEVEL.upper())))
+
+    # If running in daemo mode...
+    if cfg.daemon:
+        # ...log to file
+        handler = logging.handlers.RotatingFileHandler(
+            logfile_fullpath,
+            maxBytes=10000000,
+            backupCount=5
+        )
+
+    else:
+        # if not, log to stdout
+        handler = logging.StreamHandler(sys.stdout)
+
+        # if stdout, time will be removed. it's easier to read...
+        formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+
+    # Handler added
+    log.addHandler(handler)
+
+    log.info("MBReplay started!")
+    log.debug("Config set: %s", cfg)
+
+
     replays = []
-
-    results = parser.parse_args()
-    for replay in results.replay:
+    log.info("Setting up replays")
+    for replay in cfg.replay:
+        log.info("Parsing replay: %s", cfg)
         params = replay.split(':')
+        
         in_iface = params[0]
-        out_iface = params[1]
-        src_ip = params[2]
-        bm_ip = params[3]
-        bm_port = params[4]
+        log.debug("Sniff iface: %s", in_iface)
 
-        r = replays.append(
+        out_iface = params[1]
+        log.debug("Forward iface: %s", out_iface)
+
+        src_ip = params[2]
+        log.debug("Broadcast/Multicast source IP: %s", src_ip)
+
+        bm_ip = params[3]
+        log.debug("Broadcast/Multicast dest IP: %s", bm_ip)
+
+        bm_port = params[4]
+        log.debug("Broadcast/Multicast dest port: %s", bm_port)
+
+        log.info("Creating replay object")
+        replays.append(
             BCReplay(
                 in_iface,
                 out_iface,
@@ -370,27 +444,12 @@ def main():
             )
         )
 
+
     # Start every replay
     for replay in replays:
+        log.info("Starting replay: %s" % str(replay))
         replay.start()
-
-
-'''
-iface_in = "vmbr0"
-iface_out = "wlan0"
-src_ip = "192.168.1.11"
-bm_ip = "239.255.255.250"
-bm_port = "1900"
-
-bcreplay = BCReplay(iface_in, iface_out, src_ip, bm_ip, bm_port)
-
-secs = 120
-bcreplay.start()
-for i in range(0, secs):
-    sleep(1)
-    print i
-bcreplay.stop()
-'''
+        log.debug("Started replay: %s" % str(replay))
 
 
 if __name__ == "__main__":
