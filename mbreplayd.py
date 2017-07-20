@@ -13,20 +13,20 @@ mbreplayd is a multicast & Broadcast traffic replay daemon for pseudo-bridges
 
 - How it works:
 The idea is quite simple. What mbreplay does is:
-    - sniff for traffic in in_iface
+    - sniff for traffic in iface_in
     - choose the packets matcheing BPF filter
-    - change the source mac with the out_iface hwaddr
-    - send the packet to out_iface
+    - change the source mac with the iface_out hwaddr
+    - send the packet to iface_out
 
 The only point is that, in order to be useful, mbreplayd has to replay packets
-received in the out_iface to the in_iface. Every packet but those ones which
+received in the iface_out to the iface_in. Every packet but those ones which
 src ip is the same that the IP generating this traffic. This filter is setted
 up automatically from the bpf_filter
 
 
 - Ideal scenario:
-mbreplayd is usefull to forward broadcast and multicast traffic from in_iface
-to out_iface, both of them part of a pseudo-bridge. This is a layer 3 bridge.
+mbreplayd is usefull to forward broadcast and multicast traffic from iface_in
+to iface_out, both of them part of a pseudo-bridge. This is a layer 3 bridge.
 For sure, pseudo-bridges is not the best or event the default option to bridge
 two interfaces but, sometimes, it needed. For example when a wireles interface
 is a bridge member. In that case, is pretty common to need pseudo-bridges. In
@@ -66,35 +66,35 @@ class BCReplay(object):
             iface_in,
             iface_out,
             src_ip,
-            bm_ip,
-            bm_port,
-            bm_proto='udp'
+            mb_ip,
+            mb_port,
+            mb_proto='udp'
     ):
         """
         iface_in: interface listening for original traffic
         iface_out: interface where traffic will be replayed
         src_ip: Source IP of original traffic
-        bm_ip: Broadcast or multicast dest IP
-        bm_port: Broadcast or multicast dest port
-        bm_proto: If you need to change this, mail me!
+        mb_ip: Broadcast or multicast dest IP
+        mb_port: Broadcast or multicast dest port
+        mb_proto: If you need to change this, mail me!
         """
 
         # Storing vars to identify replay
         self.iface_in = iface_in
         self.iface_out = iface_out
         self.src_ip = src_ip
-        self.bm_ip = bm_ip
-        self.bm_port = bm_port
-        self.bm_proto = bm_proto
+        self.mb_ip = mb_ip
+        self.mb_port = mb_port
+        self.mb_proto = mb_proto
 
         self.fordarders = {}
         self.fordarders['inbound'] = FWDInbound(
             iface_in,
             iface_out,
             src_ip,
-            bm_ip,
-            bm_port,
-            bm_proto
+            mb_ip,
+            mb_port,
+            mb_proto
         )
 
         # In and Out iface are switched!
@@ -102,9 +102,9 @@ class BCReplay(object):
             iface_in,
             iface_out,
             src_ip,
-            bm_ip,
-            bm_port,
-            bm_proto
+            mb_ip,
+            mb_port,
+            mb_proto
         )
     
     def __str__(self):
@@ -116,9 +116,9 @@ class BCReplay(object):
             self.iface_in,
             self.src_ip,
             self.iface_out,
-            self.bm_ip,
-            self.bm_port,
-            self.bm_proto
+            self.mb_ip,
+            self.mb_port,
+            self.mb_proto
         )
 
     def start(self):
@@ -149,9 +149,9 @@ class Forward(object):
     # replaying already replayed traffic. If not is not defined, it will
     # create a broadcast or multicast storm. You can trust me :P
     BASE_BPF_FILTER = "%(not)s src host %(src_ip)s"
-    BASE_BPF_FILTER += " and dst port %(bm_port)s"
-    BASE_BPF_FILTER += " and %(bm_proto)s"
-    BASE_BPF_FILTER += " and dst host %(bm_ip)s"
+    BASE_BPF_FILTER += " and dst port %(mb_port)s"
+    BASE_BPF_FILTER += " and %(mb_proto)s"
+    BASE_BPF_FILTER += " and dst host %(mb_ip)s"
 
     def __init__(self, iface_in, iface_out, bpf_filter):
         """
@@ -190,7 +190,7 @@ class Forward(object):
 
     def __replay(self, pkt):
         """
-        Replay packet to out_iface changing src_mac with outbout iface mac
+        Replay packet to iface_out changing src_mac with outbout iface mac
 
         pkt: packet to replay
         """
@@ -230,25 +230,25 @@ class FWDInbound(Forward):
         iface_in,
         iface_out,
         src_ip,
-        bm_ip,
-        bm_port,
-        bm_proto='udp'
+        mb_ip,
+        mb_port,
+        mb_proto='udp'
     ):
         """
         iface_in: interface to sniff traffic in
         iface_out: interface to replay sniffed packages
         src_ip: IP generating broadcast or multicast traffic
-        bm_ip: broadcast or multicast IP
-        bm_port: broadcast or multicast dst port
-        bm_proto: Changing this won't be needed (will it? jdjp83@gmail.com)
+        mb_ip: broadcast or multicast IP
+        mb_port: broadcast or multicast dst port
+        mb_proto: Changing this won't be needed (will it? jdjp83@gmail.com)
         """
 
         bpf_filter_args = {
             "not": "",
             "src_ip": src_ip,
-            "bm_proto": bm_proto,
-            "bm_ip": bm_ip,
-            "bm_port": bm_port
+            "mb_proto": mb_proto,
+            "mb_ip": mb_ip,
+            "mb_port": mb_port
         }
 
         # BPF Filter created!!
@@ -268,24 +268,24 @@ class FWDOutbound(Forward):
                     iface_in,
                     iface_out,
                     src_ip,
-                    bm_ip,
-                    bm_port,
-                    bm_proto='udp'):
+                    mb_ip,
+                    mb_port,
+                    mb_proto='udp'):
         """
         iface_in: interface to sniff traffic in
         iface_out: interface to replay sniffed packages
         src_ip: IP generating broadcast or multicast traffic
-        bm_ip: broadcast or multicast IP
-        bm_port: broadcast or multicast dst port
-        bm_proto: Changing this won't be needed (will it? jdjp83@gmail.com)
+        mb_ip: broadcast or multicast IP
+        mb_port: broadcast or multicast dst port
+        mb_proto: Changing this won't be needed (will it? jdjp83@gmail.com)
         """
 
         bpf_filter_args = {
             "not": "not",
             "src_ip": src_ip,
-            "bm_proto": bm_proto,
-            "bm_ip": bm_ip,
-            "bm_port": bm_port
+            "mb_proto": mb_proto,
+            "mb_ip": mb_ip,
+            "mb_port": mb_port
         }
 
         # BPF Filter created!!
@@ -371,7 +371,7 @@ def main():
         help="""
             Replay definition. Can be used more than once.
             Format:
-            in_iface:out_iface:src_ip:bm_ip:bm_port
+            iface_in:iface_out:src_ip:mb_ip:mb_port
         """
         )
 
@@ -418,29 +418,29 @@ def main():
         log.info("Parsing replay: %s", cfg)
         params = replay.split(':')
         
-        in_iface = params[0]
-        log.debug("Sniff iface: %s", in_iface)
+        iface_in = params[0]
+        log.debug("Sniff iface: %s", iface_in)
 
-        out_iface = params[1]
-        log.debug("Forward iface: %s", out_iface)
+        iface_out = params[1]
+        log.debug("Forward iface: %s", iface_out)
 
         src_ip = params[2]
         log.debug("Broadcast/Multicast source IP: %s", src_ip)
 
-        bm_ip = params[3]
-        log.debug("Broadcast/Multicast dest IP: %s", bm_ip)
+        mb_ip = params[3]
+        log.debug("Broadcast/Multicast dest IP: %s", mb_ip)
 
-        bm_port = params[4]
-        log.debug("Broadcast/Multicast dest port: %s", bm_port)
+        mb_port = params[4]
+        log.debug("Broadcast/Multicast dest port: %s", mb_port)
 
         log.info("Creating replay object")
         replays.append(
             BCReplay(
-                in_iface,
-                out_iface,
+                iface_in,
+                iface_out,
                 src_ip,
-                bm_ip,
-                bm_port
+                mb_ip,
+                mb_port
             )
         )
 
