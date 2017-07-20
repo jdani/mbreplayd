@@ -26,7 +26,7 @@ For sure, pseudo-bridges is not the best or event the default option to bridge
 two interfaces but, sometimes, it needed. For example when a wireles interface
 is a bridge member. In that case, is pretty common to need pseudo-bridges. In
 my case, the upstream interface in my virtualization server was wireless, so
-I decided to solve the problem with unicast traffic using parprouted but I
+I decided to solve the problem with unicast traffic using [parprouted](https://linux.die.net/man/8/parprouted) but I
 couldn't do the same with any other software or configuration I tried. So I
 decided to write mbreplayd!.
 
